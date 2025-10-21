@@ -1,4 +1,5 @@
 import pandas as pd
+from pandas.plotting import parallel_coordinates
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -197,14 +198,14 @@ class VisualisationEngine:
         plt.title(title_name)
         
         # Add horizontal and vertical lines for the quadrants. Each line is the mean value.
-        plt.axvline(x=x_threshold, color='r', linestyle='--', label=f'X Threshold ({x_threshold:.2f})')
-        plt.axhline(y=y_threshold, color='r', linestyle='--', label=f'Y Threshold ({y_threshold:.2f})')
+        # plt.axvline(x=x_threshold, color='r', linestyle='--', label=f'X Threshold ({x_threshold:.2f})')
+        # plt.axhline(y=y_threshold, color='r', linestyle='--', label=f'Y Threshold ({y_threshold:.2f})')
 
-        # Add quadrant labels
-        plt.text(x_threshold * 0.7, y_threshold * 1.2, 'Q2', fontsize=16, ha='center', va='center')
-        plt.text(x_threshold * 1.3, y_threshold * 1.2, 'Q1', fontsize=16, ha='center', va='center')
-        plt.text(x_threshold * 0.7, y_threshold * 0.6, 'Q3', fontsize=16, ha='center', va='center')
-        plt.text(x_threshold * 1.3, y_threshold * 0.6, 'Q4', fontsize=16, ha='center', va='center')
+        # # Add quadrant labels
+        # plt.text(x_threshold * 0.7, y_threshold * 1.2, 'Q2', fontsize=16, ha='center', va='center')
+        # plt.text(x_threshold * 1.3, y_threshold * 1.2, 'Q1', fontsize=16, ha='center', va='center')
+        # plt.text(x_threshold * 0.7, y_threshold * 0.6, 'Q3', fontsize=16, ha='center', va='center')
+        # plt.text(x_threshold * 1.3, y_threshold * 0.6, 'Q4', fontsize=16, ha='center', va='center')
 
         plt.show()
     
@@ -217,6 +218,23 @@ class VisualisationEngine:
         plt.ylabel(column_2)
         plt.show()
         
+    def violin_plot(df, column_1, column_2):
+        """
+        Create a violin plot
+        Args:
+            df: DataFrame
+            column_1 (string): Name of categories column
+            column_2 (string): Name of values column
+        Return:
+            matplotlib.axes object
+        """
+        sns.violinplot(x= column_1, y= column_2, data= df[[column_1, column_2]])
+        title_str = 'Violin Plot of ' + column_1 + ' by ' + column_2
+        plt.title(title_str)
+        plt.xlabel(column_1)
+        plt.ylabel(column_2)
+        plt.show()
+    
     def threeD_plot(x, y, z, title):
         fig = plt.figure()
         ax = plt.axes(projection= '3d')
@@ -224,6 +242,40 @@ class VisualisationEngine:
         ax.scatter(x, y, z)
         ax.set_title(title)
         plt.show()
+        
+    def stacked_bar(df, category, exam_score):
+        """
+        Create a stacked bar chart
+        Args:
+            df: DataFrame
+            category (string): Category column
+            exam_score (String): Exam score
+        Returns:
+            matplotlib.axes object
+        """
+        df = df[[category, exam_score]]
+        df.set_index(category, inplace= True) # Set 'age' as the index
+        df.plot(kind= 'bar', stacked= True, figsize= (8, 6))
+        
+        plt.show()
+        
+    def parallel_coords_plot(df, class_value, *args):# col1, col2, col3):
+        """
+        Create parallel coordinates plot
+        Args:
+            df: DataFrame
+            class_value (String): Class column name
+            col1, col2, col3 (String): Features column names
+        """
+        df = df[[class_value, *args]]
+        plt.figure(figsize=(8, 6))
+        parallel_coordinates(df, class_column= class_value, color= ['blue', 'green', 'red', 'yellow'])
+        plt.title('Parallel Coordinates Plot')
+        plt.xlabel('Features')
+        plt.ylabel('Values')
+        plt.grid(True)
+        plt.show()
+
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 class ScorePredictor:

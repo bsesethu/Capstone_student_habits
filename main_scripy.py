@@ -6,7 +6,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split, GridSearchCV, StratifiedKFold
 from sklearn.linear_model import LogisticRegression
 from sklearn.tree import DecisionTreeClassifier, plot_tree
-from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, ConfusionMatrixDisplay
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, ConfusionMatrixDisplay, roc_curve, auc, roc_auc_score
 from student_analysis import (
     DataLoaderIO_nException,
     DataCleaner,
@@ -121,9 +121,27 @@ X_train, X_test, y_train, y_test = train_test_split(X, y_categorical, test_size=
 
 scaler_Standard.fit(X_train) # Fit scaling function
 
+print('\nBefore Standardising')
+print(X_train.describe())
+print('\nAfter Standardising')
+
 # Transform datasets using StandardScaler
 X_train_scaledStandard = scaler_Standard.transform(X_train)
 X_test_scaledStandard = scaler_Standard.transform(X_test)
+
+# Convert back to DataFrame with original column names
+X_train_scaled_df = pd.DataFrame(X_train_scaledStandard, columns=X_train.columns) # Otherwise X_train_scaledStandard is an array datatype
+print(X_train_scaled_df.describe())
+print('\n')
+
+# Plotting Before vs after sscaling
+fig, axes = plt.subplots(1, 2, figsize=(10,4))
+
+X_train.describe().T[['mean','std']].plot(kind='bar', ax=axes[0], title='Before Scaling')
+X_train_scaled_df.describe().T[['mean','std']].plot(kind='bar', ax=axes[1], title='After Scaling')
+
+plt.tight_layout()
+# plt.show()
 
 # Create cleaned dataset
 # ================================================
@@ -197,7 +215,7 @@ y_label = 'Number of Students'
 # Skatter plot of sleep vs final scores
 col_1 = 'sleep_hours'
 col_2 ='exam_score'
-# skatter_1 = Vis.scatterPlot(df, col_1, col_2)
+skatter_1 = Vis.scatterPlot(df, col_1, col_2)
 
 # Box plots of scores by diet quality
 # boxplot_1 = Vis.boxplots(df, 'diet_quality', 'exam_score')
@@ -206,6 +224,14 @@ col_2 ='exam_score'
 # threeD = Vis.threeD_plot(df['gender'], df['age'], df['exam_score'], '3D') # Not a useful graph
 
 # NOTE More plots later
+# bar = Vis.stacked_bar(df, 'diet_quality', 'exam_score')
+
+violinplot_1 = Vis.violin_plot(df, 'diet_quality', 'exam_score')
+
+parallel_coords_plot = Vis.parallel_coords_plot(df, 'parental_education_level', 'age', 'netflix_hours', 'sleep_hours')
+
+# Radar chart
+
 
 # Train Decision tree and Logistic regression models
 # =============================================================================================================
@@ -245,6 +271,23 @@ model_Decision = gridS.best_estimator_
 
 # Make predictions on test data
 y_pred_Decision = model_Decision.predict(X_test_scaledStandard)
+
+    # For plotting the decision tree
+feature_names_list = X_train.columns.tolist() 
+class_names_list = ['0', '1']
+
+# Decision tree plot
+plt.figure(figsize=(24, 16)) # Adjust figure size for clarity
+plot_tree(model_Decision,
+          max_depth= 2,
+          feature_names=feature_names_list, 
+          class_names=class_names_list,
+          filled=True, 
+          rounded=True, 
+          fontsize=9)
+plt.title("Decision Tree Visualization")
+plt.tight_layout()
+# plt.show()
 #----------------------------------------------------------------------------------
 
 # Check accuracy
@@ -298,12 +341,31 @@ print('Recall =', recall_Decision)
 display_L = ConfusionMatrixDisplay(confusion_matrix= confuse_Logic, display_labels= model_Logic.classes_)
 display_L.plot(cmap= plt.cm.Blues) # Using blue colour map
 plt.title('Confusion matrix for Logistic Regression')
-plt.show
+# plt.show
 
 display_D = ConfusionMatrixDisplay(confusion_matrix= confuse_Decision, display_labels= model_Decision.classes_)
 display_D.plot(cmap= plt.cm.Blues)
 plt.title('Confusion matrix for Decision tree')
-plt.show()
-#------------------------------------------------------------------------------------------------------------------------
+# plt.show()
 
 # Using ROC curves
+# Compute ROC curve and AUC
+fpr, tpr, thresholds = roc_curve(y_test, y_pred_Logic)
+auc_1 = auc(fpr, tpr)
+
+# Plot ROC curve
+plt.figure()
+plt.plot(fpr, tpr, color= 'blue', label= f'ROC curve (AUC = {auc_1:.2f})')
+plt.plot([0, 1], [0, 1], color= 'gray', linestyle= '--') # Diagonal line
+plt.xlabel('False posivive rate')
+plt.ylabel('Receiver Operating Characteristic')
+plt.legend(loc= 'lower right')
+plt.show()
+
+roc_auc = roc_auc_score(y_test, y_pred_Logic)
+print('\nROC AUC Score:', roc_auc)
+# Doing the samw thing using roc auc (Trapezoidal rule)
+print('AUC:', auc_1)
+#NOTE ROC curves and AUC is the same thing
+#------------------------------------------------------------------------------------------------------------------------
+
