@@ -2,6 +2,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from pandas.api.types import is_numeric_dtype
+import shap
+from lime.lime_tabular import LimeTabularExplainer
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split, GridSearchCV, StratifiedKFold
 from sklearn.linear_model import LogisticRegression
@@ -12,7 +14,8 @@ from student_analysis import (
     DataCleaner,
     StudentAnalyser,
     VisualisationEngine,
-    ScorePredictor
+    ScorePredictor,
+    MakeModel
 )
 # *************** Data collection and preparation ******************
 # ==========================================================================
@@ -74,9 +77,12 @@ print(clean_1.dataTypes(df))
 print('\n')
 for col in df.columns: # Checks each column for negative values
     if is_numeric_dtype(df[col]):
-        print(f'Column {col} contains negative values: {clean_1.check_negatives(df, col)}') # NOTE Use a loop later
+        print(f'Column {col} contains negative values: {clean_1.check_negatives(df, col)}')
     else:
-        print(f'Column {col} is a non numeric datatype')        
+        print(f'Column {col} is a non numeric datatype')     
+        
+# Nje, checking
+print(df[['gender', 'mental_health_rating']].head())   
 
 # Encode categorical variables
 # ===============================================
@@ -99,22 +105,10 @@ scaler_Standard = StandardScaler() # Instantiate
 X = df_encoded.drop(['exam_score', 'student_id'], axis= 1)
 y = df_encoded['exam_score']
 
-# For Logistic regression
-# Also for Decision trees, so we're comparing apples to apples
-    # Must make target features categorical. 
-    # Use 0: Fail is y < 50
-    #     1: Pass Satisfactory is 50 <= y < 75
-    #     2: Pass Distinction y >= 75
-y_categorical= [] # New target variable
-for row in y:
-    if row < 65:
-        y_categorical.append(0)
-    elif row >= 65: # and row < 75:
-        y_categorical.append(1)
-    # elif row >= 75:
-    #     y_categorical.append(2)
-    else:
-        y_categorical.append(None)
+# Instantiate
+Mm = MakeModel
+# Make target features categorical. 
+y_categorical = Mm.target_toCategorical(y)
 
 # Split train/test features
 X_train, X_test, y_train, y_test = train_test_split(X, y_categorical, test_size= 0.2, random_state= 42)
@@ -129,18 +123,20 @@ print('\nAfter Standardising')
 X_train_scaledStandard = scaler_Standard.transform(X_train)
 X_test_scaledStandard = scaler_Standard.transform(X_test)
 
+# For the PB graph I generated. Not essential step
+# Just to see the X_train data in it's columns. 
 # Convert back to DataFrame with original column names
-X_train_scaled_df = pd.DataFrame(X_train_scaledStandard, columns=X_train.columns) # Otherwise X_train_scaledStandard is an array datatype
-print(X_train_scaled_df.describe())
-print('\n')
+# X_train_scaled_df = pd.DataFrame(X_train_scaledStandard, columns=X_train.columns) # Otherwise X_train_scaledStandard is an array datatype
+# print(X_train_scaled_df.describe())
+# print('\n')
 
-# Plotting Before vs after sscaling
-fig, axes = plt.subplots(1, 2, figsize=(10,4))
+# # Plotting Before vs after sscaling
+# fig, axes = plt.subplots(1, 2, figsize=(10,4))
 
-X_train.describe().T[['mean','std']].plot(kind='bar', ax=axes[0], title='Before Scaling')
-X_train_scaled_df.describe().T[['mean','std']].plot(kind='bar', ax=axes[1], title='After Scaling')
+# X_train.describe().T[['mean','std']].plot(kind='bar', ax=axes[0], title='Before Scaling') # NOTE Interesting way of plotting
+# X_train_scaled_df.describe().T[['mean','std']].plot(kind='bar', ax=axes[1], title='After Scaling')
 
-plt.tight_layout()
+# plt.tight_layout()
 # plt.show()
 
 # Create cleaned dataset
@@ -152,25 +148,15 @@ plt.tight_layout()
 # ==============================================================================================
 # Perform EDA
 # ====================================================================================
-# Correlation matrix
-df_corr = df_encoded.drop(['student_id'], axis= 1) # Removing the non numeric columns
-correlation = df_corr.corr()
-print(correlation)
+# Correlation matrix, printed table and correlation heatmap plot
+correlation_matrix = VisualisationEngine.correlation_Matrix(df_encoded)
 
-# Plot the correlation matrix
-fig = plt.figure()
-sns.heatmap(correlation, annot=True, cmap='coolwarm', fmt=".2f", cbar=True)
-plt.title('Correlation matrix heatmap')
-# plt.show()
 #-------------------------------------------------------------------------------------------------------------------
 
-# Five Number summary of all each of the numerical columns
-print(df.describe())
-# five_numSummary = df.describe()
-# saved_summary = five_numSummary.to_csv('five_numSummary.csv') # Saved csv
-
-
+# *************************UNNECESSARY SECTION**************************************
+# Some analysis. Not prescribed in the report, holdover from assignment 1
 StA = StudentAnalyser
+# Isolate the following columns
 df_grouped_1 = StA.isolateColumns(df, 'mental_health_rating', 'study_hours_per_day')
 
 print('\nAverage study hours per day, grouped by mental health rating')
@@ -180,7 +166,6 @@ print(df_grouped_1_mean)
 print('\nMedian study hours per day, grouped by mental health rating')
 df_grouped_1_median = StA.group_nFind(df_grouped_1, 'mental_health_rating', 'median')
 print(df_grouped_1_median)
-#-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 # Identify correlation between sleep and exam scores
 # Isolate the two columns
@@ -194,7 +179,6 @@ new_df = StA.groupDistinct_avgScore(df_sl_ex)
 print('\nCorrelation between sleep_time and exam_scores')
 print(new_df)
 
-#----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 print('\nDetect outliers in social media usage')
 sigma = StA.isolate_nStd(df, 'social_media_hours')
@@ -205,33 +189,50 @@ outlier_value, index_value = StA.findOutliers(df, 'social_media_hours', sigma)
 print('\nOutlier values:', outlier_value)
 print('Outlier index values:', index_value)
 
+#-------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Perform EDA with 2D and 3D plots
+
 Vis = VisualisationEngine
 # Histogram of Study Time frequency
 column_name = 'exam_score'
 x_label = 'exam_score'
 y_label = 'Number of Students'
-# histo_1 = Vis.histogram(df, column_name, 48, x_label, y_label)
+histo_1 = Vis.histogram(df, column_name, 48, x_label, y_label)
 
-# Skatter plot of sleep vs final scores
+# Scatter plot of sleep vs final scores
 col_1 = 'sleep_hours'
 col_2 ='exam_score'
 skatter_1 = Vis.scatterPlot(df, col_1, col_2)
 
-# Box plots of scores by diet quality
-# boxplot_1 = Vis.boxplots(df, 'diet_quality', 'exam_score')
+# Scatter plot of study_hours_per_day vs final scores
+col_1 = 'study_hours_per_day'
+col_2 ='exam_score'
+skatter_1 = Vis.scatterPlot(df, col_1, col_2)
 
-# 3d scatter 
-# threeD = Vis.threeD_plot(df['gender'], df['age'], df['exam_score'], '3D') # Not a useful graph
+# Scatter plot of social_media_hours vs final scores
+col_1 = 'social_media_hours'
+col_2 ='exam_score'
+skatter_1 = Vis.scatterPlot(df, col_1, col_2)
 
-# NOTE More plots later
-# bar = Vis.stacked_bar(df, 'diet_quality', 'exam_score')
+# 3d scatter. Not a useful graph
+# threeD = Vis.threeD_plot(df['gender'], df['age'], df['exam_score'], '3D')
 
+df_counts = df[['gender', 'mental_health_rating']]
+counts = df_counts.groupby('gender')['mental_health_rating'].value_counts().sort_index()
+# df_save = counts.to_csv('bar_plot_data.csv') # File saved, had to save it
+# df_bar = pd.read_csv('bar_plot_data.csv')
+
+# bar = Vis.stacked_bar(df_bar, 'gender', 'mental_health_rating')
+
+# Violin plot
 violinplot_1 = Vis.violin_plot(df, 'diet_quality', 'exam_score')
 
-parallel_coords_plot = Vis.parallel_coords_plot(df, 'parental_education_level', 'age', 'netflix_hours', 'sleep_hours')
+parallel_coords_plot = Vis.parallel_coords_plot(df, 'exam_score', 'sleep_hours')
 
 # Radar chart
-
+radar = Vis.radar_plot(df, 'S1001')
+# we can add an input student id program. We can compare two or more students.
 
 # Train Decision tree and Logistic regression models
 # =============================================================================================================
@@ -244,7 +245,7 @@ model_Logic.fit(X_train_scaledStandard, y_train) # Logistic
 
 # Make predictions on test data
 y_pred_Logic = model_Logic.predict(X_test_scaledStandard)
-# -------------------------------------------------------------
+# -------------------------------------------------------------------------------
 
 # Decision tree model
 # Hyperparameter tuning
@@ -309,6 +310,8 @@ print(f'Accuracy score: {accuracy_Decision}')
 print('Classification report:')
 print(class_report_Decision)
 
+#NOTE Logistic Regression is the slightly better model
+
 # ===========================================================================================
 # Model evaluation and explainability
 # ====================================================================================================
@@ -341,7 +344,7 @@ print('Recall =', recall_Decision)
 display_L = ConfusionMatrixDisplay(confusion_matrix= confuse_Logic, display_labels= model_Logic.classes_)
 display_L.plot(cmap= plt.cm.Blues) # Using blue colour map
 plt.title('Confusion matrix for Logistic Regression')
-# plt.show
+# plt.show()
 
 display_D = ConfusionMatrixDisplay(confusion_matrix= confuse_Decision, display_labels= model_Decision.classes_)
 display_D.plot(cmap= plt.cm.Blues)
@@ -350,22 +353,59 @@ plt.title('Confusion matrix for Decision tree')
 
 # Using ROC curves
 # Compute ROC curve and AUC
-fpr, tpr, thresholds = roc_curve(y_test, y_pred_Logic)
-auc_1 = auc(fpr, tpr)
+fpr_L, tpr_L, thresholds_L = roc_curve(y_test, y_pred_Logic) 
+fpr_D, tpr_D, thresholds_D = roc_curve(y_test, y_pred_Decision) 
+
+auc_L = auc(fpr_L, tpr_L)
+auc_D = auc(fpr_D, tpr_D)
+
 
 # Plot ROC curve
 plt.figure()
-plt.plot(fpr, tpr, color= 'blue', label= f'ROC curve (AUC = {auc_1:.2f})')
-plt.plot([0, 1], [0, 1], color= 'gray', linestyle= '--') # Diagonal line
+
+plt.plot(fpr_L, tpr_L, color= 'blue', label= f'ROC curve Logistic (AUC = {auc_L:.2f})') # Plot Logic 
+plt.plot(fpr_D, tpr_D, color= 'red', label= f'ROC curve Decision (AUC = {auc_D:.2f})') # Plot Decision
+
+plt.plot([0, 1], [0, 1], color= 'gray', linestyle= '--', label= 'Random Guess') # Diagonal line
 plt.xlabel('False posivive rate')
 plt.ylabel('Receiver Operating Characteristic')
+plt.title('ROC curve of Two Models')
 plt.legend(loc= 'lower right')
-plt.show()
+# plt.show()
 
 roc_auc = roc_auc_score(y_test, y_pred_Logic)
 print('\nROC AUC Score:', roc_auc)
 # Doing the samw thing using roc auc (Trapezoidal rule)
-print('AUC:', auc_1)
-#NOTE ROC curves and AUC is the same thing
+print('AUC:', auc_L)
+#NOTE AUC values are displayed in the ROC curve figure
 #------------------------------------------------------------------------------------------------------------------------
 
+# Apply SHAP and LIME. Apply it to the Logistic regression model, the better of the two
+# Initialize the SHAP explainer, create an explainer object
+explainer = shap.Explainer(model_Logic.predict, X_test_scaledStandard)
+
+# Compute SHAP values for the test dataset
+# shap_values = explainer(X_test_scaledStandard)
+
+# Plot of SHAP values summary
+# feature_names_list = X_train.columns.tolist() # list of feature names
+# shap.summary_plot(shap_values, X_test_scaledStandard, feature_names= feature_names_list)
+
+# For LIME 
+# Initialize the Explainer
+explainer_lime = LimeTabularExplainer(training_data= X_train_scaledStandard, feature_names= feature_names_list,
+                                      class_names= ['Fail', 'Pass'], mode= 'classification')
+# Select an instance
+instance_idx = 0
+instance = X_test_scaledStandard[instance_idx]
+print('Instance to explain:', instance)
+
+# Generate the explanation
+explanation = explainer_lime.explain_instance(data_row= instance, predict_fn= model_Logic.predict_proba)
+
+# Inspect the explanation
+print(explanation.as_list())
+
+# Visualising the LIME results
+# plt.figure()
+# plt.barh(feature_names_list, )

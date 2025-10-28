@@ -243,29 +243,97 @@ class VisualisationEngine:
         ax.set_title(title)
         plt.show()
         
-    def stacked_bar(df, category, exam_score):
-        """
+    def stacked_bar(counts, gender, mental): # Rewrite """ """"
+        """ 
         Create a stacked bar chart
         Args:
             df: DataFrame
-            category (string): Category column
-            exam_score (String): Exam score
+            gender (string): Category column
+            mental (string): mental_health_rating column
         Returns:
-            matplotlib.axes object
+            None
         """
-        df = df[[category, exam_score]]
-        df.set_index(category, inplace= True) # Set 'age' as the index
-        df.plot(kind= 'bar', stacked= True, figsize= (8, 6))
+        l1 = l2 = l3 = l4 = l5 = l6 = l7 = l8 = l9 = l10 = [] # Corresponds to each level
+        levels = [l1, l2, l3, l4, l5, l6, l7, l8, l9, l10]
+        gender_category = ['Female', 'Male', 'Other']
+        for i in range(10): # iterate over the first 10 rows
+            if counts.iloc[i, 1] == i + 1 and counts.iloc[i, 0] == 1:
+                if counts.iloc[i + 10, 1] == i + 1 and counts.iloc[i + 10, 0] == 2: 
+                    if counts.iloc[i + 20, 1] == i + 1 and counts.iloc[i + 20, 0] == 3:
+                        if i == 0:
+                            l1.append(counts.iloc[i, 2])
+                            l1.append(counts.iloc[i + 10, 2])
+                            l1.append(counts.iloc[i + 20, 2])                           
+                        elif i == 1:
+                            l2.append(counts.iloc[i, 2])
+                            l2.append(counts.iloc[i + 10, 2])
+                            l2.append(counts.iloc[i + 20, 2])
+                        elif i == 2:
+                            l3.append(counts.iloc[i, 2])
+                            l3.append(counts.iloc[i + 10, 2])
+                            l3.append(counts.iloc[i + 20, 2])
+                        elif i == 3:
+                            l4.append(counts.iloc[i, 2])
+                            l4.append(counts.iloc[i + 10, 2])
+                            l4.append(counts.iloc[i + 20, 2])
+                        elif i == 4:
+                            l5.append(counts.iloc[i, 2])
+                            l5.append(counts.iloc[i + 10, 2])
+                            l5.append(counts.iloc[i + 20, 2])
+                        elif i == 5:
+                            l6.append(counts.iloc[i, 2])
+                            l6.append(counts.iloc[i + 10, 2])
+                            l6.append(counts.iloc[i + 20, 2])
+                        elif i == 6:
+                            l7.append(counts.iloc[i, 2])
+                            l7.append(counts.iloc[i + 10, 2])
+                            l7.append(counts.iloc[i + 20, 2])
+                        elif i == 7:
+                            l8.append(counts.iloc[i, 2])
+                            l8.append(counts.iloc[i + 10, 2])
+                            l8.append(counts.iloc[i + 20, 2])
+                        elif i == 8:
+                            l9.append(counts.iloc[i, 2])
+                            l9.append(counts.iloc[i + 10, 2])
+                            l9.append(counts.iloc[i + 20, 2])
+                        elif i == 9:
+                            l10.append(counts.iloc[i, 2])
+                            l10.append(counts.iloc[i + 10, 2])
+                            l10.append(counts.iloc[i + 20, 2])
+        # Now to put this into a df
+        data_new = {
+            'Gender': gender_category,
+            'Mental health rating 1': l1,
+            'Mental health rating 2': l2,
+            'Mental health rating 3': l3,
+            'Mental health rating 4': l4,
+            'Mental health rating 5': l5,
+            'Mental health rating 6': l6,
+            'Mental health rating 7': l7,
+            'Mental health rating 8': l8,
+            'Mental health rating 9': l9,
+            'Mental health rating 10': l10,
+        }
+        print(data_new)
+        
+        df_bar = pd.DataFrame(data_new)
+        # counts.drop('gender', inplace= True) # LAter
+        df_new = df_bar.set_index(gender)
+        df_new.plot(kind= 'bar', stacked= True, figsize= (8, 6))
+        
+        print(df_bar)
         
         plt.show()
         
-    def parallel_coords_plot(df, class_value, *args):# col1, col2, col3):
+    def parallel_coords_plot(df, class_value, *args):
         """
         Create parallel coordinates plot
         Args:
             df: DataFrame
             class_value (String): Class column name
-            col1, col2, col3 (String): Features column names
+            *args (Strings): Features column names
+        Returns
+            None
         """
         df = df[[class_value, *args]]
         plt.figure(figsize=(8, 6))
@@ -275,6 +343,65 @@ class VisualisationEngine:
         plt.ylabel('Values')
         plt.grid(True)
         plt.show()
+    
+    def correlation_Matrix(df):
+        """
+        Prints the correlation matrix and plots the correlation matrix heatmap
+        Args:
+            df: Dataframe
+        Returns
+            None
+        """
+        # Correlation matrix
+        df_corr = df.drop(['student_id'], axis= 1) # Removing the non numeric columns
+        correlation = df_corr.corr()
+        print(correlation)
+
+        # Plot the correlation matrix
+        fig = plt.figure()
+        sns.heatmap(correlation, annot=True, cmap='coolwarm', fmt=".2f", cbar=True)
+        plt.title('Correlation matrix heatmap')
+        plt.show()
+        
+    def radar_plot(df, student_id):
+        """
+        
+        """
+        categories = ['exam_score', 'mental_health_rating', 'diet_quality', 'sleep_hours', 'social_media_hours']
+        # Use one student's values at a time
+        df_values = df[['student_id', 'exam_score', 'mental_health_rating', 'diet_quality', 'sleep_hours', 'social_media_hours']]
+        
+        # Finding the values for a specific student
+        for ind, val in enumerate(df_values['student_id']):
+            if val == student_id:
+                # Create a list of values for this student
+                values = [df_values.iloc[ind, 1] / 10, df_values.iloc[ind, 2], df_values.iloc[ind, 3], df_values.iloc[ind, 4], df_values.iloc[ind, 5]] # First value (exam_score) / 10 to fit the scale
+            
+        # Repeat the first value to close the circle
+        values = np.concatenate((values, [values[0]]))
+
+        # Set the angle for each axis
+        num_vars = len(categories)
+        angles = np.linspace(0, 2 * np.pi, num_vars, endpoint=False)
+        angles = np.concatenate((angles, [angles[0]]))
+
+        # Create a polar plot
+        fig, ax = plt.subplots(figsize=(8, 8), subplot_kw=dict(polar=True)) # Making plot coordinates polar
+
+        # Plot the data
+        ax.plot(angles, values, 'o-', linewidth=2)
+        ax.fill(angles, values, alpha=0.25)
+
+        # Set labels for each axis
+        ax.set_yticklabels([]) # Hide radial ticks
+        ax.set_xticks(angles[:-1])
+        ax.set_xticklabels(categories)
+
+        # Add a title
+        plt.title(f'Radar plot of student ID {student_id}')
+
+        plt.show()
+
 
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -332,3 +459,21 @@ class ScorePredictor:
             pickle.dump(model, file)
         print(f"Model saved to {model_file}")
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+class MakeModel:
+    def target_toCategorical(y):
+        # For Logistic regression
+        # Must make target features categorical. 
+        # Use 0: Fail is y < 65
+        #     1: Pass is y >= 65
+        y_categorical= [] # New target variable
+        for row in y:
+            if row < 65:
+                y_categorical.append(0)
+            elif row >= 65:
+                y_categorical.append(1)
+            else:
+                y_categorical.append(None)
+        return y_categorical
+    
+    
