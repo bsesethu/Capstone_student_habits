@@ -1,4 +1,4 @@
-🧠 Student Habits and Academic Performance Analysis
+#🧠 Student Habits and Academic Performance Analysis
 📋 Project Overview
 
 This project explores the relationship between student lifestyle habits and academic performance using data science techniques.
