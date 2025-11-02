@@ -11,16 +11,16 @@ To build predictive models capable of forecasting academic performance based on 
 The project was developed as part of a Data Science learning journey — combining data cleaning, exploratory data analysis (EDA), machine learning, and model interpretability (SHAP and LIME).
 
 🧩 Project Structure
-├── main_script.py               # Main pipeline orchestrator
-├── student_analysis.py          # Custom classes for data loading, cleaning, analysis, visualization, and modeling
-├── ROC_AUC.png                  # ROC curve comparison of models
-├── SHAP.png                     # Global feature importance visualization
-├── LIME.png                     # Example of local model explanation
+├── main_script.py               Main pipeline orchestrator
+├── student_analysis.py          Custom classes for data loading, cleaning, analysis, visualization, and modeling
+├── ROC_AUC.png                  ROC curve comparison of models
+├── SHAP.png                     Global feature importance visualization
+├── LIME.png                     Example of local model explanation
 ├── data/
-│   └── student_habits_performance.csv   # Dataset (not included here for privacy)
-├── README.md                    # Project documentation
+│   └── student_habits_performance.csv   Dataset (not included here for privacy)
+├── README.md                    Project documentation
 └── reports/
-    └── Student_Habits_Report.docx       # Final report (if applicable)
+    └── Student_Habits_Report.docx       Final report (if applicable)
 
 🧠 Dataset Description
 
