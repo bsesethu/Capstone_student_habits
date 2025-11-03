@@ -8,10 +8,15 @@ It combines data cleaning, exploratory data analysis (EDA), supervised learning,
 
 ## Repository structure
 ├── main_script.py # Main pipeline orchestrator
+
 ├── student_analysis.py # Custom classes for loading, cleaning, EDA, visualization, and modeling
+
 ├── student_habits_performance.csv # Original dataset
+
 ├── README.md # This file
+
 └── Report_SM_Bango # Final report
+
 └── student_clean.csv
 
 ---
@@ -66,5 +71,20 @@ It combines data cleaning, exploratory data analysis (EDA), supervised learning,
 2. Install dependencies:
    ```bash
    pip install -r requirements.txt
+3. Place student_habits_performance.csv in the data/ folder.
+4. Run the main pipeline:
+   ```bash
+   python main_script.py
+
+---
+
+## Author / Contact
+
+Sesethu M. Bango
+Data Analyst | Data Scientist
+
+LinkedIn: [(https://www.linkedin.com/in/sesethu-bango-197856380/)]
+
+Email: bsesethu@outlook.com
 
 
