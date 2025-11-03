@@ -4,7 +4,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.linear_model import LinearRegression
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, GridSearchCV, StratifiedKFold
+from sklearn.tree import DecisionTreeClassifier, plot_tree
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, ConfusionMatrixDisplay, roc_curve, auc, roc_auc_score
+from lime.lime_tabular import LimeTabularExplainer
+
 import pickle
 
 
@@ -140,36 +144,42 @@ class StudentAnalyser:
             'mean_exam_score': [mean_4, mean_6, mean_7, mean_9, mean_10]
         })
         return new_df
-    
-    # (Function) Find the standard deviation of a single column
-    def isolate_nStd(df, column_name):
-        sigma = round(np.std(df[column_name]), 2) # Returns the standard deviation 
-        return sigma
-    
-    # (Function) Find outlier values and indices of a single column. NOTE it may need to be normally distributed, find out
-    def findOutliers(df, column_name, sigma): #NOTE Returns two variables, sigma is the standard deviation. 
-        mean_value = df[column_name].mean() # Mean value
-        print('Mean value:', mean_value)
         
-        # Upper and lower boundaries, beyond which we can identify outliers
-        upper_b = round(mean_value + (3 * sigma), 2)
-        lower_b = round(mean_value - (3 * sigma), 2)
-        print('Upper and lower boundaries', upper_b, lower_b) # There are no values for 'social_media_hours' that are less than 0, lower_b is less than that . Hence there won't be any lower bound outliers
-        
-        # Find outliers
-        rows_total = df.shape[0]
-        index_val = []
-        outlier_val = []
-        for i in range(rows_total):
-            if df.loc[i, column_name] > upper_b:
-                index_val.append(i) # Returns index of outlier
-                outlier_val.append(df.loc[i, column_name]) # Returns outlier value
-                
-            elif df.loc[i, column_name] < lower_b:
-                index_val.append(i) # Returns index of outlier
-                outlier_val.append(df.loc[i, column_name]) # Returns outlier value
-        
-        return outlier_val, index_val
+    # (Function) Find outlier values and indices for each column in the dataframe. NOTE it may need to be normally distributed, find out
+    def findOutliers(df): 
+        # Find the standard deviation of a each and all numeric column
+        df_numeric = df.select_dtypes(include='number') # select only numeric dtype columns into a df
+        for col in df_numeric.columns.to_list():  
+            sigma = round(np.std(df[col]), 2) # Returns the standard deviation 
+            
+            mean_value = df[col].mean() # Mean value
+            # print('Mean value:', mean_value)
+            
+            # Upper and lower boundaries, beyond which we can identify outliers
+            upper_b = round(mean_value + (3 * sigma), 2)
+            lower_b = round(mean_value - (3 * sigma), 2)
+            # print('Upper and lower boundaries', upper_b, lower_b) # There are no values for 'social_media_hours' that are less than 0, lower_b is less than that . Hence there won't be any lower bound outliers
+            
+            # Find outliers
+            rows_total = df_numeric.shape[0]
+            index_val = []
+            outlier_val = []
+            for i in range(rows_total):
+                if df.loc[i, col] > upper_b:
+                    index_val.append(i) # Returns index of outlier
+                    outlier_val.append(df.loc[i, col]) # Returns outlier value
+                    
+                elif df.loc[i, col] < lower_b:
+                    index_val.append(i) # Returns index of outlier
+                    outlier_val.append(df.loc[i, col]) # Returns outlier value
+            
+            print('\n')
+            print(f'Detect outliers for {col} column')
+            print(f'Standard deviation for {col} = {sigma}')
+
+            # Find outlers
+            print('\nOutlier values:', outlier_val)
+            print('Outlier index values:', index_val)
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 class VisualisationEngine:
@@ -190,7 +200,7 @@ class VisualisationEngine:
         y = df[column_name2]
         x_threshold = np.mean(x)
         y_threshold = np.mean(y)
-        title_name = 'Skatter plot of ' + column_name1 +  ' vs ' +  column_name2
+        title_name = 'Scatter plot of ' + column_name1 +  ' vs ' +  column_name2
 
         plt.scatter(x, y, alpha= 0.7, cmap= 'viridis', marker= '.')
         plt.xlabel(column_name1)
@@ -226,8 +236,11 @@ class VisualisationEngine:
             column_1 (string): Name of categories column
             column_2 (string): Name of values column
         Return:
-            matplotlib.axes object
+            None
         """
+        # Rename the diet_quality values from numeric categorical string value categorical
+        df[column_1].replace({1 : 'Good', 2 : 'Fair', 3 : 'Poor'}, inplace= True)
+        
         sns.violinplot(x= column_1, y= column_2, data= df[[column_1, column_2]])
         title_str = 'Violin Plot of ' + column_1 + ' by ' + column_2
         plt.title(title_str)
@@ -243,88 +256,29 @@ class VisualisationEngine:
         ax.set_title(title)
         plt.show()
         
-    def stacked_bar(counts, gender, mental): # Rewrite """ """"
+    def stacked_bar(df): 
         """ 
-        Create a stacked bar chart
+        Create a stacked bar chart of gender by mental_health_rating
         Args:
             df: DataFrame
-            gender (string): Category column
-            mental (string): mental_health_rating column
         Returns:
             None
         """
-        l1 = l2 = l3 = l4 = l5 = l6 = l7 = l8 = l9 = l10 = [] # Corresponds to each level
-        levels = [l1, l2, l3, l4, l5, l6, l7, l8, l9, l10]
-        gender_category = ['Female', 'Male', 'Other']
-        for i in range(10): # iterate over the first 10 rows
-            if counts.iloc[i, 1] == i + 1 and counts.iloc[i, 0] == 1:
-                if counts.iloc[i + 10, 1] == i + 1 and counts.iloc[i + 10, 0] == 2: 
-                    if counts.iloc[i + 20, 1] == i + 1 and counts.iloc[i + 20, 0] == 3:
-                        if i == 0:
-                            l1.append(counts.iloc[i, 2])
-                            l1.append(counts.iloc[i + 10, 2])
-                            l1.append(counts.iloc[i + 20, 2])                           
-                        elif i == 1:
-                            l2.append(counts.iloc[i, 2])
-                            l2.append(counts.iloc[i + 10, 2])
-                            l2.append(counts.iloc[i + 20, 2])
-                        elif i == 2:
-                            l3.append(counts.iloc[i, 2])
-                            l3.append(counts.iloc[i + 10, 2])
-                            l3.append(counts.iloc[i + 20, 2])
-                        elif i == 3:
-                            l4.append(counts.iloc[i, 2])
-                            l4.append(counts.iloc[i + 10, 2])
-                            l4.append(counts.iloc[i + 20, 2])
-                        elif i == 4:
-                            l5.append(counts.iloc[i, 2])
-                            l5.append(counts.iloc[i + 10, 2])
-                            l5.append(counts.iloc[i + 20, 2])
-                        elif i == 5:
-                            l6.append(counts.iloc[i, 2])
-                            l6.append(counts.iloc[i + 10, 2])
-                            l6.append(counts.iloc[i + 20, 2])
-                        elif i == 6:
-                            l7.append(counts.iloc[i, 2])
-                            l7.append(counts.iloc[i + 10, 2])
-                            l7.append(counts.iloc[i + 20, 2])
-                        elif i == 7:
-                            l8.append(counts.iloc[i, 2])
-                            l8.append(counts.iloc[i + 10, 2])
-                            l8.append(counts.iloc[i + 20, 2])
-                        elif i == 8:
-                            l9.append(counts.iloc[i, 2])
-                            l9.append(counts.iloc[i + 10, 2])
-                            l9.append(counts.iloc[i + 20, 2])
-                        elif i == 9:
-                            l10.append(counts.iloc[i, 2])
-                            l10.append(counts.iloc[i + 10, 2])
-                            l10.append(counts.iloc[i + 20, 2])
-        # Now to put this into a df
-        data_new = {
-            'Gender': gender_category,
-            'Mental health rating 1': l1,
-            'Mental health rating 2': l2,
-            'Mental health rating 3': l3,
-            'Mental health rating 4': l4,
-            'Mental health rating 5': l5,
-            'Mental health rating 6': l6,
-            'Mental health rating 7': l7,
-            'Mental health rating 8': l8,
-            'Mental health rating 9': l9,
-            'Mental health rating 10': l10,
-        }
-        print(data_new)
+        # Change genders from numeric to categorical
         
-        df_bar = pd.DataFrame(data_new)
-        # counts.drop('gender', inplace= True) # LAter
-        df_new = df_bar.set_index(gender)
-        df_new.plot(kind= 'bar', stacked= True, figsize= (8, 6))
-        
-        print(df_bar)
-        
+        # Group data by gender and mental health rating, count occurrences
+        grouped = df.groupby(['gender', 'mental_health_rating']).size().unstack(fill_value=0)
+
+        # Plot stacked bar
+        grouped.plot(kind='bar', stacked=True, figsize=(8, 6), colormap='coolwarm')
+
+        plt.title('Distribution of Mental Health Ratings by Gender', fontsize=14, pad=10)
+        plt.xlabel('Gender', fontsize=12)
+        plt.ylabel('Number of Students', fontsize=12)
+        plt.legend(title='Mental Health Rating', bbox_to_anchor=(1.05, 1), loc='upper left')
+        plt.tight_layout()
         plt.show()
-        
+                
     def parallel_coords_plot(df, class_value, *args):
         """
         Create parallel coordinates plot
@@ -355,6 +309,7 @@ class VisualisationEngine:
         # Correlation matrix
         df_corr = df.drop(['student_id'], axis= 1) # Removing the non numeric columns
         correlation = df_corr.corr()
+        print('\nCorrelation Martix')
         print(correlation)
 
         # Plot the correlation matrix
@@ -367,9 +322,9 @@ class VisualisationEngine:
         """
         
         """
-        categories = ['exam_score', 'mental_health_rating', 'diet_quality', 'sleep_hours', 'social_media_hours']
+        categories = ['exam_score', 'study_hours_per_day', 'netflix_hours', 'sleep_hours', 'social_media_hours']
         # Use one student's values at a time
-        df_values = df[['student_id', 'exam_score', 'mental_health_rating', 'diet_quality', 'sleep_hours', 'social_media_hours']]
+        df_values = df[['student_id', 'exam_score', 'study_hours_per_day', 'netflix_hours', 'sleep_hours', 'social_media_hours']]
         
         # Finding the values for a specific student
         for ind, val in enumerate(df_values['student_id']):
@@ -393,71 +348,16 @@ class VisualisationEngine:
         ax.fill(angles, values, alpha=0.25)
 
         # Set labels for each axis
-        ax.set_yticklabels([]) # Hide radial ticks
-        ax.set_xticks(angles[:-1])
-        ax.set_xticklabels(categories)
+        # ax.set_yticklabels([]) # Hide radial ticks
+        # ax.set_xticks(angles[:-1])
+        # ax.set_xticklabels(categories)
+        ax.set_thetagrids(np.degrees(angles[:-1]), labels=categories)
 
         # Add a title
         plt.title(f'Radar plot of student ID {student_id}')
 
         plt.show()
 
-
-#---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-
-class ScorePredictor:
-    # (Function) Model function. Linear regression
-    def model_LinearReg(df, X): # x_new is the new individual student characteristics. X is the input features, prediction_num is the index of the prediction required
-        y = df['exam_score']
-        
-        # Split train-test
-        X_train, X_test, y_train, y_test = train_test_split(X, y)
-
-        model = LinearRegression() 
-        model.fit(X_train, y_train)
-
-        y_prediction = model.predict(X_test)
-        return y_prediction, y_test
-   
-    # (Function) Convert specific string value to an integer using kwargs. Hence we can then include string value coulumns in the model
-    def string_to_Int(df, column_name, **kwargs):
-        for i, value in enumerate(kwargs.values(), start= 1):
-            df.loc[df[column_name] == value, column_name] = i
-        return df
-    
-    # (Function) Creates DF of actual and predicted values and their percentage differance
-    def compareActual_toPredicted(df, X, actualColumn_name): # actualValues is the actual value column name
-        df_test_case_1 = X
-        y = df[actualColumn_name]
-        length_df = df_test_case_1.shape[0]
-        list_predConsumption = []
-        model = LinearRegression()
-        model.fit(X, y)
-
-        for i in range(length_df):
-            list_predConsumption.append(round(model.predict(df_test_case_1)[i], 2)) # Returns list of predicted values
-
-        # Convert list to df
-        df_prediction = pd.DataFrame({'Predicted Values': list_predConsumption})  
-        df_actual = df[actualColumn_name] # Original Energy Consumption column
-        # print('\n', df_prediction, df_Energy_Cons)
-
-        # Find percentage difference of predicted value from the actual value
-        df_joined = df_prediction.join(df_actual) 
-        # print('\n', df_joined)
-        df_joined['Percent_Difference'] = round(((df_joined[actualColumn_name] - df_joined['Predicted Values']) / df_joined[actualColumn_name]) * 100.0, 2)
-        return df_joined
-    
-        # (Function) Saving model using pickle
-    def save_usingPickle(df, X, actualColumn_name): # actualValues is the actual value column nam
-        y = df[actualColumn_name]
-        # Trained model
-        model = LinearRegression()
-        model.fit(X, y)
-        model_file = 'trained_model.pkl'
-        with open(model_file, 'wb') as file:
-            pickle.dump(model, file)
-        print(f"Model saved to {model_file}")
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 class MakeModel:
@@ -476,4 +376,153 @@ class MakeModel:
                 y_categorical.append(None)
         return y_categorical
     
+    # (Function) Convert specific string value to an integer using kwargs. Hence we can then include string value coulumns in the model
+    def string_to_Int(df, column_name, **kwargs):
+        for i, value in enumerate(kwargs.values(), start= 1):
+            df.loc[df[column_name] == value, column_name] = i
+        return df
     
+    def decision_tree_setup(X_train, y_train):
+        """
+        
+        """
+        # Decision tree model
+        # Hyperparameter tuning
+        decision_instance = DecisionTreeClassifier(random_state= 42)
+
+        # Define parameter grid
+        param_grid = {
+            'criterion': ['gini', 'entropy'],
+            'max_depth': [None, 5, 10, 15],
+            'min_samples_split': [2, 5, 10],
+            'min_samples_leaf': [1, 2, 4] # No ccp alpha, add later to chech difference
+        }
+        # Define cross validation strategy
+        cross_validation = StratifiedKFold(n_splits= 5, shuffle= True, random_state = 42)
+        gridS = GridSearchCV(estimator= decision_instance,
+                            param_grid= param_grid,
+                            cv= cross_validation,
+                            scoring= 'accuracy',
+                            n_jobs= -1)
+        gridS.fit(X_train, y_train)
+
+        # Get the best model from gridS
+        model_Decision = gridS.best_estimator_
+        
+        return model_Decision
+    
+    def evaluateNPlot_Logistic_confusion(y_test, y_pred_Logic, model_Logic):
+        """
+        
+        """
+        confuse_Logic = confusion_matrix(y_test, y_pred_Logic)
+
+        TP_L = confuse_Logic[1, 1] # extract True Negatives
+        FP_L = confuse_Logic[0, 1] # extract False Positives
+        FN_L = confuse_Logic[1, 0] # extracy False Negative
+        # Calculate precition and recall
+        precision_Logic = TP_L / (TP_L + FP_L)
+        recall_Logic = TP_L / (TP_L + FN_L)
+        
+        # Plot confusion matrix
+        display_L = ConfusionMatrixDisplay(confusion_matrix= confuse_Logic, display_labels= model_Logic.classes_)
+        display_L.plot(cmap= plt.cm.Blues) # Using blue colour map
+        plt.title('Confusion matrix for Logistic Regression')
+        plt.show()
+        
+        return precision_Logic, recall_Logic
+
+    def evaluateNPlot_Decision_confusion(y_test, y_pred_Decision, model_Decision):
+        """
+        
+        """
+        confuse_Decision = confusion_matrix(y_test, y_pred_Decision)
+
+        TP_D = confuse_Decision[1, 1] # extract True Positives
+        FP_D = confuse_Decision[0, 1] # extract False Positives
+        FN_D = confuse_Decision[1, 0] # extracy False Negative
+
+        precision_Decision = TP_D / (TP_D + FP_D)
+        recall_Decision = TP_D / (TP_D + FN_D)
+        
+        # Plot confusion matrix
+        display_D = ConfusionMatrixDisplay(confusion_matrix= confuse_Decision, display_labels= model_Decision.classes_)
+        display_D.plot(cmap= plt.cm.Blues)
+        plt.title('Confusion matrix for Decision tree')
+        plt.show()
+        
+        return precision_Decision, recall_Decision
+
+    def ROC_curvePlot(y_test, y_pred_Logic, y_pred_Decision):
+        """
+        
+        """
+        fpr_L, tpr_L, thresholds_L = roc_curve(y_test, y_pred_Logic) 
+        fpr_D, tpr_D, thresholds_D = roc_curve(y_test, y_pred_Decision) 
+
+        auc_L = auc(fpr_L, tpr_L)
+        auc_D = auc(fpr_D, tpr_D)
+
+        # Plot ROC curve
+        plt.figure()
+
+        plt.plot(fpr_L, tpr_L, color= 'blue', label= f'ROC curve Logistic (AUC = {auc_L:.2f})') # Plot Logic 
+        plt.plot(fpr_D, tpr_D, color= 'red', label= f'ROC curve Decision (AUC = {auc_D:.2f})') # Plot Decision
+
+        plt.plot([0, 1], [0, 1], color= 'gray', linestyle= '--', label= 'Random Guess') # Diagonal line
+        plt.xlabel('False posivive rate')
+        plt.ylabel('Receiver Operating Characteristic')
+        plt.title('ROC curves of Two Models')
+        plt.legend(loc= 'lower right')
+        plt.show()
+
+        roc_auc_L = roc_auc_score(y_test, y_pred_Logic)
+        print('\nROC AUC Score (Logistic):', roc_auc_L)
+        
+        roc_auc_D = roc_auc_score(y_test, y_pred_Decision)
+        print('\nROC AUC Score (Decision):', roc_auc_D)
+
+        # Doing the same thing using roc auc (Trapezoidal rule)
+        print('AUC (Logistic):', auc_L)
+        print('AUC (Decision):', auc_D)
+        #NOTE AUC values are displayed in the ROC curve figure
+
+    def LIME_explanation_NPlot(X_train_scaledStandard, X_test_scaledStandard, model_Logic, feature_names_list):
+        """
+        
+        """
+        # Initialize the Explainer
+        explainer_lime = LimeTabularExplainer(training_data= X_train_scaledStandard, feature_names= feature_names_list,
+                                            class_names= ['Fail', 'Pass'], mode= 'classification')
+        # Select an instance
+        instance_idx = 0
+        instance = X_test_scaledStandard[instance_idx]
+        print('Instance to explain:', instance)
+
+        # Generate the explanation
+        explanation = explainer_lime.explain_instance(data_row= instance, predict_fn= model_Logic.predict_proba)
+
+        # Inspect the explanation
+        print(explanation.as_list())
+
+        # Visualising the LIME results
+        # Get the explanation as a list of (feature, weight) tuples
+        exp_list = explanation.as_list()
+        features = [item[0] for item in exp_list]
+        weights = [item[1] for item in exp_list]
+
+        # Sort features by absolute weight for better visualization
+        sorted_indices = np.argsort(np.abs(weights))[::-1]
+        sorted_features = [features[i] for i in sorted_indices]
+        sorted_weights = [weights[i] for i in sorted_indices]
+
+        plt.figure(figsize=(10, 6))
+        plt.barh(sorted_features, sorted_weights, color=['red' if w < 0 else 'green' for w in sorted_weights])
+        plt.xlabel("Feature Importance (LIME Weight)")
+        plt.ylabel("Feature")
+        plt.yticks(fontsize= 6)
+        plt.title(f"LIME Explanation for Instance Predicted")
+        plt.gca().invert_yaxis() # Puts most important feature at the top
+        plt.show()
+#==========================================================================================================================================================================
+# FIN
