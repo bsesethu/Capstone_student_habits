@@ -1,1 +1,4 @@
-# Capstone_student_habits
+#🧠 Student Habits and Academic Performance Analysis
+📋 Project Overview
+
+
